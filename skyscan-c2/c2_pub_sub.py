@@ -14,6 +14,10 @@ import schedule
 from datetime import datetime
 from math import radians, cos, sin, asin, sqrt
 
+import math
+import numpy as np
+import quaternion
+
 import axis_ptz_utilities
 from base_mqtt_pub_sub import BaseMQTTPubSub
 
@@ -100,7 +104,7 @@ class C2PubSub(BaseMQTTPubSub):
 
         # Compute the rotations from the geocentric (XYZ) coordinate
         # system to the camera housing fixed (uvw) coordinate system
-        logging.info(f"Initial E_XYZ_to_uvw: {self.E_XYZ_to_uvw}")
+  
         (
             self.q_alpha,
             self.q_beta,
@@ -119,6 +123,7 @@ class C2PubSub(BaseMQTTPubSub):
             self.rho_c,
             self.tau_c,
         )
+        logging.info(f"Initial E_XYZ_to_uvw: {self.E_XYZ_to_uvw}")
 
         # create MQTT client connection
         self.connect_client()
@@ -145,25 +150,15 @@ class C2PubSub(BaseMQTTPubSub):
             """
         )
 
-        def _calculate_camera_angles(self, data: Any) -> tuple[float, float]:
-            # Calculate the relative tilt and pan angles of the object compared to the device
-            # Your calculation logic here
-            return relative_tilt, relative_pan
+    def _calculate_camera_angles(self: Any, data: Any) -> tuple[float, float]:
+        # Calculate the relative tilt and pan angles of the object compared to the device
+        # Your calculation logic here
 
-        """
-        Process object message.
-
-        Returns
-        -------
-        None
-        """
         # Assign identifier, time, position, and velocity of the
         # object
         data = self.decode_payload(msg, "Selected Object")
         if not set(
             [
-                "object_id",
-                "object_type",
                 "timestamp",
                 "latitude",
                 "longitude",
