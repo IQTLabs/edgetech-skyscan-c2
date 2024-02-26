@@ -70,8 +70,8 @@ class C2PubSub(BaseMQTTPubSub):
         self.device_altitude = float(device_altitude)
         self.object_distance_threshold = float(object_distance_threshold)
         self.lambda_t = self.device_longitude  # [deg]
-        self.varphi_t = self.device_latitude # [deg]
-        self.h_t = self.device_altitude # [m]
+        self.varphi_t = self.device_latitude  # [deg]
+        self.h_t = self.device_altitude  # [m]
         self.alpha = 0.0  # [deg]
         self.beta = 0.0
         self.gamma = 0.0
@@ -88,7 +88,6 @@ class C2PubSub(BaseMQTTPubSub):
         self.r_XYZ_t = axis_ptz_utilities.compute_r_XYZ(
             self.lambda_t, self.varphi_t, self.h_t
         )
-
 
         # Compute orthogonal transformation matrix from geocentric
         # (XYZ) to topocentric (ENz) coordinates
@@ -251,7 +250,7 @@ class C2PubSub(BaseMQTTPubSub):
             math.atan2(r_uvw_o_1_t[2], axis_ptz_utilities.norm(r_uvw_o_1_t[0:2]))
         )  # [deg]
         logging.info(f"Camera pan and tilt to object: {self.rho_o}, {self.tau_o} [deg]")
-       
+
         return self.rho_o, self.tau_o
 
     def _relative_distance_meters(
@@ -310,12 +309,9 @@ class C2PubSub(BaseMQTTPubSub):
                 ### some logic to select which target
                 target = None
 
-
                 object_ledger_df["camera_tilt"], object_ledger_df["camera_pan"] = zip(
                     *object_ledger_df.apply(
-                        lambda x: self._calculate_camera_angles(
-                            x.to_dict()
-                        ),
+                        lambda x: self._calculate_camera_angles(x.to_dict()),
                         axis=1,
                     )
                 )
