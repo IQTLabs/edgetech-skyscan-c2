@@ -155,7 +155,7 @@ class C2PubSub(BaseMQTTPubSub):
 
         # Assign identifier, time, position, and velocity of the
         # object
-        data = self.decode_payload(msg, "Selected Object")
+
         if not set(
             [
                 "timestamp",
@@ -168,7 +168,7 @@ class C2PubSub(BaseMQTTPubSub):
             ]
         ) <= set(data.keys()):
             logging.info(f"Required keys missing from object message data: {data}")
-            return
+            return 0, 0
         logging.info(f"Processing object msg data: {data}")
         self.timestamp_o = float(data["timestamp"])  # [s]
         self.timestamp_c = self.timestamp_o
