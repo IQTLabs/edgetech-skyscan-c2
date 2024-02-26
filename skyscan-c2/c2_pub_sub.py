@@ -16,7 +16,6 @@ from math import radians, cos, sin, asin, sqrt
 
 import math
 import numpy as np
-import quaternion
 
 import axis_ptz_utilities
 from base_mqtt_pub_sub import BaseMQTTPubSub
