@@ -104,7 +104,7 @@ class C2PubSub(BaseMQTTPubSub):
 
         # Compute the rotations from the geocentric (XYZ) coordinate
         # system to the camera housing fixed (uvw) coordinate system
-  
+
         (
             self.q_alpha,
             self.q_beta,
