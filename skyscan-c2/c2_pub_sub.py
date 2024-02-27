@@ -44,6 +44,7 @@ class C2PubSub(BaseMQTTPubSub):
         device_latitude: str,
         device_longitude: str,
         device_altitude: str,
+        lead_time: float,
         file_interval: int = FILE_INTERVAL,
         earth_radius_km: int = EARTH_RADIUS_KM,
         debug: bool = False,
@@ -77,6 +78,7 @@ class C2PubSub(BaseMQTTPubSub):
         self.lambda_t = self.device_longitude  # [deg]
         self.varphi_t = self.device_latitude  # [deg]
         self.h_t = self.device_altitude  # [m]
+        self.lead_time = lead_time  # [s]
         self.alpha = 0.0  # [deg]
         self.beta = 0.0
         self.gamma = 0.0
@@ -476,6 +478,7 @@ if __name__ == "__main__":
         device_latitude=str(os.environ.get("TRIPOD_LATITUDE")),
         device_longitude=str(os.environ.get("TRIPOD_LONGITUDE")),
         device_altitude=str(os.environ.get("TRIPOD_ALTITUDE")),
+        lead_time=float(os.environ.get("LEAD_TIME", 1.0)),
         object_distance_threshold=str(os.environ.get("OBJECT_DISTANCE_THRESHOLD")),
         log_level=str(os.environ.get("LOG_LEVEL", "INFO")),
     )
