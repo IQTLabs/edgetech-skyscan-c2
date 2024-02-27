@@ -8,7 +8,7 @@ from io import StringIO
 from time import sleep, time
 from typing import Any
 import paho.mqtt.client as mqtt
-from typing import Any, Dict
+from typing import Any, Dict, Optional, Union
 import pandas as pd
 import schedule
 from datetime import datetime
