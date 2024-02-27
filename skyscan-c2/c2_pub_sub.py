@@ -152,7 +152,7 @@ class C2PubSub(BaseMQTTPubSub):
             """
         )
 
-    def _calculate_camera_angles(self: Any, data: Any) -> tuple[float, float]:
+    def _calculate_camera_angles(self: Any, data: Any) -> tuple[float, float, float]:
         # Calculate the relative tilt and pan angles of the object compared to the device
         # Your calculation logic here
 
