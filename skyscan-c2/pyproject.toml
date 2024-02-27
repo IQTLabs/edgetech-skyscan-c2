@@ -10,8 +10,8 @@ python = "^3.10"
 schedule = "^1.1.0"
 pandas = "^2.0.3"
 coloredlogs = "^15.0.1"
-numpy = "^1.24.2"
-numpy-quaternion = "^2022.4.3"
+numpy = "^1.26.4"
+numpy-quaternion = "^2023.0.2"
 
 
 [tool.poetry.dev-dependencies]
