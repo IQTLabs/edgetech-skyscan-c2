@@ -174,7 +174,7 @@ class C2PubSub(BaseMQTTPubSub):
         ) <= set(data.keys()):
             logging.info(f"Required keys missing from object message data: {data}")
             return 0.0, 0.0, 0.0
-        logging.info(f"Processing object msg data: {data}")
+        #logging.info(f"Processing object msg data: {data}")
         self.timestamp_o = float(data["timestamp"])  # [s]
         self.timestamp_c = self.timestamp_o
         self.lambda_o = data["longitude"]  # [deg]
@@ -195,10 +195,10 @@ class C2PubSub(BaseMQTTPubSub):
         # Assign lead time, computing and adding age of object
         # message, if enabled
         lead_time = self.lead_time  # [s]
-        if self.include_age:
-            object_msg_age = datetime.utcnow().timestamp() - self.timestamp_o  # [s]
-            logging.debug(f"Object msg age: {object_msg_age} [s]")
-            lead_time += object_msg_age
+
+        object_msg_age = datetime.utcnow().timestamp() - self.timestamp_o  # [s]
+        logging.debug(f"Object msg age: {object_msg_age} [s] Lead time: {lead_time} [s]")
+        lead_time += object_msg_age
 
         # Compute position and velocity in the topocentric (ENz)
         # coordinate system of the object relative to the tripod at
@@ -240,7 +240,7 @@ class C2PubSub(BaseMQTTPubSub):
         self.elv_o = math.degrees(
             math.atan2(r_ENz_o_1_t[2], axis_ptz_utilities.norm(r_ENz_o_1_t[0:2]))
         )  # [deg]
-        logging.info(f"Object azimuth and elevation: {self.azm_o}, {self.elv_o} [deg]")
+        #logging.info(f"Object azimuth and elevation: {self.azm_o}, {self.elv_o} [deg]")
 
         # Compute pan and tilt to point the camera at the object
         r_uvw_o_1_t = np.matmul(self.E_XYZ_to_uvw, r_XYZ_o_1_t)
@@ -309,8 +309,8 @@ class C2PubSub(BaseMQTTPubSub):
                 target = None
 
                 (
-                    object_ledger_df["camera_tilt"],
                     object_ledger_df["camera_pan"],
+                    object_ledger_df["camera_tilt"],
                     object_ledger_df["distance_3d"],
                 ) = zip(
                     *object_ledger_df.apply(
@@ -328,6 +328,7 @@ class C2PubSub(BaseMQTTPubSub):
                     axis=1,
                 )
 
+                logging.info(f"Object ledger: {object_ledger_df.to_string()}")
                 if not object_ledger_df.empty and not self.override_object:
                     logging.debug("Standard distance thresholding")
                     object_ledger_df = object_ledger_df[
