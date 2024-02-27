@@ -8,7 +8,7 @@ from io import StringIO
 from time import sleep, time
 from typing import Any
 import paho.mqtt.client as mqtt
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Union
 import pandas as pd
 import schedule
 from datetime import datetime
@@ -548,16 +548,10 @@ class C2PubSub(BaseMQTTPubSub):
             topic_name=self.c2_topic,
             publish_payload=json.dumps({"msg": "NEW FILE"}),
         )
+        self.add_subscribe_topic(self.config_topic, self._config_callback)
+        self.add_subscribe_topic(self.ledger_topic, self._target_selection_callback)
+        self.add_subscribe_topic(self.manual_override_topic, self._target_selection_callback)
 
-        self.add_subscribe_topics(
-            [self.ledger_topic, self.manual_override_topic, self.config_topic],
-            [
-                self._target_selection_callback,
-                self._target_selection_callback,
-                self._config_callback,
-            ],
-            [2, 2],
-        )
 
         while True:
             try:
