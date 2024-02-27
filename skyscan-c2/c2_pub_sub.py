@@ -38,6 +38,7 @@ class C2PubSub(BaseMQTTPubSub):
         c2_topic: str,
         ledger_topic: str,
         object_topic: str,
+        prioritized_ledger_topic: str,
         manual_override_topic: str,
         object_distance_threshold: str,
         device_latitude: str,
@@ -67,6 +68,7 @@ class C2PubSub(BaseMQTTPubSub):
         self.c2_topic = c2_topic
         self.ledger_topic = ledger_topic
         self.object_topic = object_topic
+        self.prioritized_ledger_topic = prioritized_ledger_topic
         self.manual_override_topic = manual_override_topic
         self.device_latitude = float(device_latitude)
         self.device_longitude = float(device_longitude)
@@ -137,6 +139,7 @@ class C2PubSub(BaseMQTTPubSub):
     c2_topic = {c2_topic}
     ledger_topic = {ledger_topic}
     object_topic = {object_topic}
+    prioritized_ledger_topic = {prioritized_ledger_topic}
     manual_override_topic = {manual_override_topic}
     object_distance_threshold = {object_distance_threshold}
     device_latitude = {device_latitude}
@@ -245,7 +248,7 @@ class C2PubSub(BaseMQTTPubSub):
         )  # [deg]
         logging.info(f"Camera pan and tilt to object: {self.rho_o}, {self.tau_o} [deg]")
 
-        return self.rho_o, self.tau_o
+        return self.rho_o, self.tau_o, self.distance3d
 
     def _relative_distance_meters(
         self: Any, lat_one: float, lon_one: float, lat_two: float, lon_two: float
@@ -303,7 +306,11 @@ class C2PubSub(BaseMQTTPubSub):
                 ### some logic to select which target
                 target = None
 
-                object_ledger_df["camera_tilt"], object_ledger_df["camera_pan"] = zip(
+                (
+                    object_ledger_df["camera_tilt"],
+                    object_ledger_df["camera_pan"],
+                    object_ledger_df["distance_3d"],
+                ) = zip(
                     *object_ledger_df.apply(
                         lambda x: self._calculate_camera_angles(x.to_dict()),
                         axis=1,
@@ -363,6 +370,9 @@ class C2PubSub(BaseMQTTPubSub):
                             "horizontal_velocity": float(target["horizontal_velocity"]),
                             "vertical_velocity": float(target["vertical_velocity"]),
                             "relative_distance": float(target["relative_distance"]),
+                            "camera_tilt": float(target["camera_tilt"]),
+                            "camera_pan": float(target["camera_pan"]),
+                            "distance_3d": float(target["distance_3d"]),
                             "age": float(target["age"]),
                         },
                     }
@@ -392,6 +402,31 @@ class C2PubSub(BaseMQTTPubSub):
                             f"Failed to send data: {out_json} on topic: {self.object_topic}"
                         )
 
+                    out_json = self.generate_payload_json(
+                        push_timestamp=str(int(datetime.utcnow().timestamp())),
+                        device_type="Collector",
+                        id_=self.hostname,
+                        deployment_id=f"ShipScan-{self.hostname}",
+                        current_location="-90, -180",
+                        status="Debug",
+                        message_type="Event",
+                        model_version="null",
+                        firmware_version="v0.0.0",
+                        data_payload_type="Prioritized Object Ledger",
+                        data_payload=json.dumps(object_ledger_df.to_json()),
+                    )
+
+                    success = self.publish_to_topic(
+                        self.prioritized_ledger_topic, out_json
+                    )
+                    if success:
+                        logging.debug(
+                            f"Successfully sent data: {out_json} on topic: {self.object_topic}"
+                        )
+                    else:
+                        logging.warning(
+                            f"Failed to send data: {out_json} on topic: {self.object_topic}"
+                        )
         if "ObjectIDOverride" in payload_dict.keys():
             self.override_object = str(payload_dict["ObjectIDOverride"])
             ### end here
@@ -436,6 +471,7 @@ if __name__ == "__main__":
         c2_topic=str(os.environ.get("C2_TOPIC")),
         ledger_topic=str(os.environ.get("LEDGER_TOPIC")),
         object_topic=str(os.environ.get("OBJECT_TOPIC")),
+        prioritized_ledger_topic=str(os.environ.get("PRIORITIZED_LEDGER_TOPIC")),
         manual_override_topic=str(os.environ.get("MANUAL_OVERRIDE_TOPIC")),
         device_latitude=str(os.environ.get("TRIPOD_LATITUDE")),
         device_longitude=str(os.environ.get("TRIPOD_LONGITUDE")),
