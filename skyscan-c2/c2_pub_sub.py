@@ -134,7 +134,7 @@ class C2PubSub(BaseMQTTPubSub):
             self.rho_c,
             self.tau_c,
         )
-        logging.info(f"Initial E_XYZ_to_uvw: {self.E_XYZ_to_uvw}")
+        
 
         # create MQTT client connection
         self.connect_client()
@@ -262,7 +262,6 @@ class C2PubSub(BaseMQTTPubSub):
         self.tau_o = math.degrees(
             math.atan2(r_uvw_o_1_t[2], axis_ptz_utilities.norm(r_uvw_o_1_t[0:2]))
         )  # [deg]
-        logging.info(f"Camera pan and tilt to object: {self.rho_o}, {self.tau_o} [deg]")
 
         return self.rho_o, self.tau_o, self.distance3d
 
@@ -377,7 +376,6 @@ class C2PubSub(BaseMQTTPubSub):
     def _target_selection_callback(
         self: Any, _client: mqtt.Client, _userdata: Dict[Any, Any], msg: Any
     ) -> None:
-        logging.debug("Ledger recieved")
         payload_dict = json.loads(str(msg.payload.decode("utf-8")))
 
         if "ObjectLedger" in payload_dict.keys():
@@ -388,7 +386,6 @@ class C2PubSub(BaseMQTTPubSub):
             object_ledger_df["age"] = time() - object_ledger_df["timestamp"]
 
             if len(object_ledger_df):
-                logging.debug("Ledger not empty")
                 ### some logic to select which target
                 target = None
 
@@ -422,10 +419,10 @@ class C2PubSub(BaseMQTTPubSub):
                     object_ledger_df["altitude"] > self.max_altitude
                 )
 
-                logging.info(f"Object ledger: {object_ledger_df.to_string()}")
+                #logging.info(f"Object ledger: {object_ledger_df.to_string()}")
                 if not object_ledger_df.empty and not self.override_object:
                     logging.debug("Standard distance thresholding")
-                    object_ledger_df = object_ledger_df[
+                    target_ledger_df = object_ledger_df[
                         (
                             object_ledger_df["relative_distance"]
                             <= self.object_distance_threshold
@@ -434,13 +431,13 @@ class C2PubSub(BaseMQTTPubSub):
                         & (object_ledger_df["min_altitude_fail"] == False)
                         & (object_ledger_df["max_altitude_fail"] == False)
                     ]
-                    if not object_ledger_df.empty:
+                    if not target_ledger_df.empty:
                         logging.debug("Object[s] within distance threshold")
-                        target = object_ledger_df.sort_values(
+                        target = target_ledger_df.sort_values(
                             by="relative_distance", ascending=True
                         ).iloc[0]
                     else:
-                        logging.info("No object[s] within distance threshold")
+                        logging.debug("No object[s] within distance threshold")
                 elif self.override_object and not object_ledger_df.empty:
                     logging.debug("Override object selection")
                     selection_df = object_ledger_df[
@@ -550,8 +547,9 @@ class C2PubSub(BaseMQTTPubSub):
         )
         self.add_subscribe_topic(self.config_topic, self._config_callback)
         self.add_subscribe_topic(self.ledger_topic, self._target_selection_callback)
-        self.add_subscribe_topic(self.manual_override_topic, self._target_selection_callback)
-
+        self.add_subscribe_topic(
+            self.manual_override_topic, self._target_selection_callback
+        )
 
         while True:
             try:

@@ -33,10 +33,22 @@
 <h1 align="center">EdgeTech-Template</h1>
 
   <p align="center">
-    This repo is a template of how to build on <a href="https://github.com/IQTLabs/edgetech-core">IQT Labs EdgeTech-Core</a> functionality to instantiate an <a href="https://projects.eclipse.org/projects/iot.mosquitto">MQTT</a> client. The philosophy behind EdgeTech-Core is to minimize development requirements for standing up the software stack of an "edge" system. The template includes all of the files and code scaffolds required to build in the EdgeTech framework. All of this functionality is wrapped in a Docker container for cross-platform compatibility. 
+    This repo is designed to be part of a SkyScan system. SkyScan automatically points a Pan Tilt Zoom (PTZ) camera at an aircraft based on the location information broadcast in an ADS-B message. SkyScan C2 ingests a ledger of potentional aircraft and selects one to point the camera at. It is run as a Docker container and messages are passed to it using MQTT. 
     <br/>
     <br/>
-    You'll need to rename various files and directories as well as customize based on your functional needs, but the EdgeTech framework and scaffolding should minimize the development requirements. If you don't find that to be the case, submit a pull request and help us make this repository better!
+    <h3>Configuration</h3>
+    SkyScan C2 makes it selection based on the distance of aircraft from the camera location. Based on where the camera is located and weather conditions, it may not be able to see all of the surrounding aircrarft. You can have SkyScan C2 ignore these obscured aircraft by configuring the following environment variables:
+    - **MIN_TILT**: The minimum tilt angle above the horizon for the camera. This is useful for when trees or buildings might obscure the horizon
+    - **MIN_ALTITUDE**: The minimum altitude of an aircraft. This is useful when there are nearby aircraft that are on the ground and should be ignored.
+    - **MAX_ALTITUDE**: The maximum altitude of an aircraft. This is useful when there are clouds and you want to ignore any aircrafts that are in the clouds.
+    <br/>
+    <br/>
+    <h3>Docker Compose</h3>
+    SkyScan is designed to be stood up as a series of Docker containers. Docker Compose makes it easy to do coordinate all of the containers. The <a href="https://github.com/IQTLabs/edgetech-skyscan">EdgeTech SkyScan</a> repo provides an example of a `docker-compose.yaml` file that can be used to startup an instance. The `docker-compose.yaml` file include in this repo provides a minimal example of how to start and configure a SkyScan C2 container. You can use this Docker Compose file as a starting point if you wish to include the SkyScan C2 container in a custom system.
+    <br/>
+    <br/>
+    <h3>Environment Files</h3>
+    Environment files are used to capture the configuration of SkyScan C2. 
     <br/>
     <br/>
     <a href="https://github.com/IQTLabs/edgetech-template/pulls">Make Contribution</a>
