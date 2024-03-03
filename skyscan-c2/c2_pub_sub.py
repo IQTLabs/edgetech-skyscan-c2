@@ -392,8 +392,7 @@ class C2PubSub(BaseMQTTPubSub):
         Returns:
             bool: True if the elevation is within the acceptable range
         """
-        if occlusion_mapping_enabled:
-            occlusion_mapping_enabled = True
+        if self.occlusion_mapping_enabled:
             for obj in self.occlusion_mapping:
                 if obj["azimuth"] > azimuth:
                     if obj["elevation"] > elevation:
