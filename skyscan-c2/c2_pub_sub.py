@@ -44,6 +44,7 @@ class C2PubSub(BaseMQTTPubSub):
         min_tilt: float,
         min_altitude: float,
         max_altitude: float,
+        mapping_filepath: str,
         object_distance_threshold: str,
         device_latitude: str,
         device_longitude: str,
@@ -79,6 +80,7 @@ class C2PubSub(BaseMQTTPubSub):
         self.device_latitude = float(device_latitude)
         self.device_longitude = float(device_longitude)
         self.device_altitude = float(device_altitude)
+        self.mapping_filepath = mapping_filepath
         self.object_distance_threshold = float(object_distance_threshold)
         self.min_tilt = min_tilt
         self.min_altitude = min_altitude
@@ -97,6 +99,13 @@ class C2PubSub(BaseMQTTPubSub):
         self.debug = debug
         self.log_level = log_level
         self.override_object = None
+
+        if self.mapping_filepath == "":
+            self.occlusion_mapping_enabled = False
+        else:
+            with open(mapping_filepath) as f:
+                self.occlusion_mapping = json.load(f)
+            self.occlusion_mapping_enabled = True
 
         # Compute tripod position in the geocentric (XYZ) coordinate
         # system
@@ -155,6 +164,7 @@ class C2PubSub(BaseMQTTPubSub):
     min_tilt = {min_tilt}
     min_altitude = {min_altitude}
     max_altitude = {max_altitude}
+    mapping_filepath = {mapping_filepath}
     object_distance_threshold = {object_distance_threshold}
     device_latitude = {device_latitude}
     device_longitude = {device_longitude}
@@ -373,6 +383,28 @@ class C2PubSub(BaseMQTTPubSub):
         self.min_altitude = config.get("min_altitude", self.min_altitude)
         self.max_altitude = config.get("max_altitude", self.max_altitude)
 
+    def _elevation_check(self: Any, azimuth: float, elevation: float) -> bool:
+        """Check if the elevation is within the acceptable range
+
+        Args:
+            elevation (float): The elevation to check
+
+        Returns:
+            bool: True if the elevation is within the acceptable range
+        """
+        if occlusion_mapping_enabled:
+            occlusion_mapping_enabled = True
+            for obj in self.occlusion_mapping:
+                if obj["azimuth"] > azimuth:
+                    if obj["elevation"] > elevation:
+                        return False
+                    else:
+                        return True
+                    break
+            return True
+        else:
+            return self.min_tilt <= elevation <= 90
+        
     def _target_selection_callback(
         self: Any, _client: mqtt.Client, _userdata: Dict[Any, Any], msg: Any
     ) -> None:
@@ -409,9 +441,11 @@ class C2PubSub(BaseMQTTPubSub):
                     axis=1,
                 )
 
-                object_ledger_df["min_tilt_fail"] = (
-                    object_ledger_df["camera_tilt"] < self.min_tilt
+                object_ledger_df["min_tilt_fail"] = object_ledger_df.apply(
+                    lambda x: self._elevation_check(x["camera_pan"], x["camera_tilt"]),
+                    axis=1
                 )
+
                 object_ledger_df["min_altitude_fail"] = (
                     object_ledger_df["altitude"] < self.min_altitude
                 )
@@ -572,13 +606,14 @@ if __name__ == "__main__":
         object_topic=str(os.environ.get("OBJECT_TOPIC")),
         prioritized_ledger_topic=str(os.environ.get("PRIORITIZED_LEDGER_TOPIC")),
         manual_override_topic=str(os.environ.get("MANUAL_OVERRIDE_TOPIC")),
-        device_latitude=str(os.environ.get("TRIPOD_LATITUDE")),
-        device_longitude=str(os.environ.get("TRIPOD_LONGITUDE")),
-        device_altitude=str(os.environ.get("TRIPOD_ALTITUDE")),
+        device_latitude=float(os.environ.get("TRIPOD_LATITUDE")),
+        device_longitude=float(os.environ.get("TRIPOD_LONGITUDE")),
+        device_altitude=float(os.environ.get("TRIPOD_ALTITUDE")),
         lead_time=float(os.environ.get("LEAD_TIME", 1.0)),
         min_tilt=float(os.environ.get("MIN_TILT", 0.0)),
         min_altitude=float(os.environ.get("MIN_ALTITUDE", 0.0)),
         max_altitude=float(os.environ.get("MAX_ALTITUDE", 100000000.0)),
+        mapping_filepath=str(os.environ.get("MAPPING_FILEPATH","")),
         object_distance_threshold=str(os.environ.get("OBJECT_DISTANCE_THRESHOLD")),
         log_level=str(os.environ.get("LOG_LEVEL", "INFO")),
     )
