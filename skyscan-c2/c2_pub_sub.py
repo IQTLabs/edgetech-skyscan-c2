@@ -396,10 +396,8 @@ class C2PubSub(BaseMQTTPubSub):
             for obj in self.occlusion_mapping:
                 if obj["azimuth"] > azimuth:
                     if obj["elevation"] > elevation:
-                        logging.info(f"Plane Occluded: {azimuth} {elevation} Mapping: {obj['azimuth']}, {obj['elevation']}")
                         return False
                     else:
-                        logging.info(f"Plane Visible: {azimuth} {elevation} Mapping: {obj['azimuth']}, {obj['elevation']}")
                         return True
                     break
             return True
