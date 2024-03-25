@@ -492,6 +492,7 @@ class C2PubSub(BaseMQTTPubSub):
                             "object_id": str(target.name),
                             "object_type": str(target["object_type"]),
                             "timestamp": float(target["timestamp"]),
+                            "request_time": float(target["request_time"]),
                             "latitude": float(target["latitude"]),
                             "longitude": float(target["longitude"]),
                             "altitude": float(target["altitude"]),
