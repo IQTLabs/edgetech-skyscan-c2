@@ -36,7 +36,6 @@ class C2PubSub(BaseMQTTPubSub):
         self: Any,
         hostname: str,
         config_topic: str,
-        c2_topic: str,
         ledger_topic: str,
         object_topic: str,
         prioritized_ledger_topic: str,
@@ -72,7 +71,6 @@ class C2PubSub(BaseMQTTPubSub):
         # initialize attributes
         self.hostname = hostname
         self.config_topic = config_topic
-        self.c2_topic = c2_topic
         self.ledger_topic = ledger_topic
         self.object_topic = object_topic
         self.prioritized_ledger_topic = prioritized_ledger_topic
@@ -156,7 +154,6 @@ class C2PubSub(BaseMQTTPubSub):
             f"""C2PubSub initialized with parameters:
     hostname = {hostname}
     config_topic = {config_topic}
-    c2_topic = {c2_topic}
     ledger_topic = {ledger_topic}
     object_topic = {object_topic}
     prioritized_ledger_topic = {prioritized_ledger_topic}
@@ -571,13 +568,7 @@ class C2PubSub(BaseMQTTPubSub):
         # publish heartbeat to keep the TCP/IP connection alive
         schedule.every(10).seconds.do(self.publish_heartbeat, payload="C2 Heartbeat")
 
-        # every file interval, publish a message to broadcast to file
-        # saving nodes to change files
-        schedule.every(self.file_interval).minutes.do(
-            self.publish_to_topic,
-            topic_name=self.c2_topic,
-            publish_payload=json.dumps({"msg": "NEW FILE"}),
-        )
+
         self.add_subscribe_topic(self.config_topic, self._config_callback)
         self.add_subscribe_topic(self.ledger_topic, self._target_selection_callback)
         self.add_subscribe_topic(
@@ -600,7 +591,6 @@ if __name__ == "__main__":
         hostname=str(os.environ.get("HOSTNAME")),
         mqtt_ip=str(os.environ.get("MQTT_IP")),
         config_topic=os.environ.get("CONFIG_TOPIC", ""),
-        c2_topic=str(os.environ.get("C2_TOPIC")),
         ledger_topic=str(os.environ.get("LEDGER_TOPIC")),
         object_topic=str(os.environ.get("OBJECT_TOPIC")),
         prioritized_ledger_topic=str(os.environ.get("PRIORITIZED_LEDGER_TOPIC")),
