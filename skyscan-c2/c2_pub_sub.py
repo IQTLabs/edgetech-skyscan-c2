@@ -215,7 +215,7 @@ class C2PubSub(BaseMQTTPubSub):
         # message, if enabled
         lead_time = self.lead_time  # [s]
 
-        object_msg_age = datetime.utcnow().timestamp() - self.timestamp_o  # [s]
+        object_msg_age = time() - self.timestamp_o  # [s]
         logging.debug(
             f"Object msg age: {object_msg_age} [s] Lead time: {lead_time} [s]"
         )
