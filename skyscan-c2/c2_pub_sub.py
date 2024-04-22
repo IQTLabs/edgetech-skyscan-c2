@@ -411,11 +411,14 @@ class C2PubSub(BaseMQTTPubSub):
             object_ledger_df = pd.read_json(
                 StringIO(object_ledger_json), convert_dates=False, convert_axes=False
             )
-            object_ledger_df["age"] = time() - object_ledger_df["timestamp"]
+
 
             if len(object_ledger_df):
                 ### some logic to select which target
                 target = None
+                object_ledger_df["age"] = time() - object_ledger_df["timestamp"]
+                object_ledger_df["target"] = False
+                object_ledger_df["selectable"] = False
 
                 (
                     object_ledger_df["camera_pan"],
@@ -463,9 +466,11 @@ class C2PubSub(BaseMQTTPubSub):
                     ]
                     if not target_ledger_df.empty:
                         logging.debug("Object[s] within distance threshold")
+                        target_ledger_df["selectable"] = True
                         target = target_ledger_df.sort_values(
                             by="relative_distance", ascending=True
                         ).iloc[0]
+                        target["target"] = True
                     else:
                         logging.debug("No object[s] within distance threshold")
                 elif self.override_object and not object_ledger_df.empty:
