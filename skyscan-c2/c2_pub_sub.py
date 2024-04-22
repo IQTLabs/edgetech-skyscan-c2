@@ -466,11 +466,11 @@ class C2PubSub(BaseMQTTPubSub):
                     ]
                     if not target_ledger_df.empty:
                         logging.debug("Object[s] within distance threshold")
-                        target_ledger_df["selectable"] = True
+                        target_ledger_df.loc[:, "selectable"] = True
                         target = target_ledger_df.sort_values(
                             by="relative_distance", ascending=True
                         ).iloc[0]
-                        target["target"] = True
+                        target.loc["target"] = True
                     else:
                         logging.debug("No object[s] within distance threshold")
                 elif self.override_object and not object_ledger_df.empty:
