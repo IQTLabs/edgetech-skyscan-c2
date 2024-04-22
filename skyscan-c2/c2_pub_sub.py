@@ -531,30 +531,30 @@ class C2PubSub(BaseMQTTPubSub):
                             f"Failed to send data: {out_json} on topic: {self.object_topic}"
                         )
 
-                    out_json = self.generate_payload_json(
-                        push_timestamp=str(int(datetime.utcnow().timestamp())),
-                        device_type="Collector",
-                        id_=self.hostname,
-                        deployment_id=f"ShipScan-{self.hostname}",
-                        current_location="-90, -180",
-                        status="Debug",
-                        message_type="Event",
-                        model_version="null",
-                        firmware_version="v0.0.0",
-                        data_payload_type="Prioritized Object Ledger",
-                        data_payload=json.dumps(object_ledger_df.to_json()),
-                    )
+                out_json = self.generate_payload_json(
+                    push_timestamp=str(int(datetime.utcnow().timestamp())),
+                    device_type="Collector",
+                    id_=self.hostname,
+                    deployment_id=f"ShipScan-{self.hostname}",
+                    current_location="-90, -180",
+                    status="Debug",
+                    message_type="Event",
+                    model_version="null",
+                    firmware_version="v0.0.0",
+                    data_payload_type="Prioritized Object Ledger",
+                    data_payload=json.dumps(object_ledger_df.to_json()),
+                )
 
-                    success = self.publish_to_topic(
-                        self.prioritized_ledger_topic, out_json
+                success = self.publish_to_topic(
+                    self.prioritized_ledger_topic, out_json
+                )
+                if success:
+                    logging.debug(
+                        f"Successfully sent data: {out_json} on topic: {self.object_topic}"
                     )
-                    if success:
-                        logging.debug(
-                            f"Successfully sent data: {out_json} on topic: {self.object_topic}"
-                        )
-                    else:
-                        logging.warning(
-                            f"Failed to send data: {out_json} on topic: {self.object_topic}"
+                else:
+                    logging.warning(
+                        f"Failed to send data: {out_json} on topic: {self.object_topic}"
                         )
         if "ObjectIDOverride" in payload_dict.keys():
             self.override_object = str(payload_dict["ObjectIDOverride"])
