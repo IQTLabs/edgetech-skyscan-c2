@@ -547,7 +547,7 @@ class C2PubSub(BaseMQTTPubSub):
                     model_version="null",
                     firmware_version="v0.0.0",
                     data_payload_type="Prioritized Object Ledger",
-                    data_payload=json.dumps(object_ledger_df.to_json()),
+                    data_payload=object_ledger_df.to_json(),
                 )
 
                 success = self.publish_to_topic(
