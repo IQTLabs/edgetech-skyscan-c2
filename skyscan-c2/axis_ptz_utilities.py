@@ -12,7 +12,7 @@ import numpy.typing as npt
 import quaternion
 
 # WGS84 parameters
-R_OPLUS = 6378137  # [m]
+R_OPLUS = 6378137 #6371008.7714 #6378137  # [m]
 F_INV = 298.257223563
 
 
@@ -171,6 +171,9 @@ def compute_r_XYZ(
                 ((1.0 - f) ** 2 * N + o_h) * np.sin(r_varphi_np),
             ),
         )
+    else:
+        logging.error(f"compute_r_XYZ - Invalid data type for d_lambda: {type(d_lambda)}")
+        raise ValueError("Invalid data type for d_lambda")
     return r_XYZ
 
 
@@ -274,6 +277,39 @@ def norm(v: npt.NDArray[np.float64]) -> float:
         s += v[i] ** 2
     return math.sqrt(s)
 
+def compute_angle_delta( theta_c: float, theta_o: float) -> float:
+    """Given the angle of the camera and object in a domain of
+    width 360 degrees, determine the angle delta, that is the
+    smallest difference in angle, signed according to the sign of
+    the angular rate required to bring the angle of the camera
+    toward the angle of the object.
+
+    Parameters
+    ----------
+    theta_c : float
+        Pan or tilt of the camera [deg]
+    theta_o : float
+        Pan or tilt of the object [deg]
+
+    Returns
+    -------
+    float
+        Angle delta [deg]
+    """
+    theta_c = math.radians(theta_c)
+    theta_o = math.radians(theta_o)
+    d = math.cos(theta_c) * math.cos(theta_o) + math.sin(theta_c) * math.sin(
+        theta_o
+    )
+    c = math.cos(theta_c) * math.sin(theta_o) - math.sin(theta_c) * math.cos(
+        theta_o
+    )
+    if math.fabs(c) == 0:
+        logging.info(
+            f"theta_c: {theta_c}, theta_o: {theta_o}, d: {d}, c: {c}, math.fabs(c): {math.fabs(c)}"
+        )
+        return 0
+    return math.degrees(math.acos(d)) * c / math.fabs(c)
 
 def compute_camera_rotations(
     e_E_XYZ: npt.NDArray[np.float64],

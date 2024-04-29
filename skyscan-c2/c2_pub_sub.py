@@ -203,74 +203,78 @@ class C2PubSub(BaseMQTTPubSub):
         ground_speed_o = data["horizontal_velocity"]  # [m/s]
         vertical_rate_o = data["vertical_velocity"]  # [m/s]
 
-        # Compute position in the geocentric (XYZ) coordinate system
-        # of the object relative to the tripod at time zero, the
-        # observation time
-        r_XYZ_o_0 = axis_ptz_utilities.compute_r_XYZ(
-            self.lambda_o, self.varphi_o, self.h_o
-        )
-        r_XYZ_o_0_t = r_XYZ_o_0 - self.r_XYZ_t
+        try:
+            # Compute position in the geocentric (XYZ) coordinate system
+            # of the object relative to the tripod at time zero, the
+            # observation time
+            r_XYZ_o_0 = axis_ptz_utilities.compute_r_XYZ(
+                self.lambda_o, self.varphi_o, self.h_o
+            )
+            r_XYZ_o_0_t = r_XYZ_o_0 - self.r_XYZ_t
 
-        # Assign lead time, computing and adding age of object
-        # message, if enabled
-        lead_time = self.lead_time  # [s]
+            # Assign lead time, computing and adding age of object
+            # message, if enabled
+            lead_time = self.lead_time  # [s]
 
-        object_msg_age = time() - self.timestamp_o  # [s]
-        logging.debug(
-            f"Object msg age: {object_msg_age} [s] Lead time: {lead_time} [s]"
-        )
-        lead_time += object_msg_age
+            object_msg_age = time() - self.timestamp_o  # [s]
+            logging.debug(
+                f"Object msg age: {object_msg_age} [s] Lead time: {lead_time} [s]"
+            )
+            lead_time += object_msg_age
 
-        # Compute position and velocity in the topocentric (ENz)
-        # coordinate system of the object relative to the tripod at
-        # time zero, and position at slightly later time one
-        self.r_ENz_o_0_t = np.matmul(self.E_XYZ_to_ENz, r_XYZ_o_0_t)
-        track_o = math.radians(track_o)
-        self.v_ENz_o_0_t = np.array(
-            [
-                ground_speed_o * math.sin(track_o),
-                ground_speed_o * math.cos(track_o),
-                vertical_rate_o,
-            ]
-        )
-        r_ENz_o_1_t = self.r_ENz_o_0_t + self.v_ENz_o_0_t * lead_time
+            # Compute position and velocity in the topocentric (ENz)
+            # coordinate system of the object relative to the tripod at
+            # time zero, and position at slightly later time one
+            self.r_ENz_o_0_t = np.matmul(self.E_XYZ_to_ENz, r_XYZ_o_0_t)
+            track_o = math.radians(track_o)
+            self.v_ENz_o_0_t = np.array(
+                [
+                    ground_speed_o * math.sin(track_o),
+                    ground_speed_o * math.cos(track_o),
+                    vertical_rate_o,
+                ]
+            )
+            r_ENz_o_1_t = self.r_ENz_o_0_t + self.v_ENz_o_0_t * lead_time
 
-        # Compute position, at time one, and velocity, at time zero,
-        # in the geocentric (XYZ) coordinate system of the object
-        # relative to the tripod
-        r_XYZ_o_1_t = np.matmul(self.E_XYZ_to_ENz.transpose(), r_ENz_o_1_t)
-        v_XYZ_o_0_t = np.matmul(self.E_XYZ_to_ENz.transpose(), self.v_ENz_o_0_t)
+            # Compute position, at time one, and velocity, at time zero,
+            # in the geocentric (XYZ) coordinate system of the object
+            # relative to the tripod
+            r_XYZ_o_1_t = np.matmul(self.E_XYZ_to_ENz.transpose(), r_ENz_o_1_t)
+            v_XYZ_o_0_t = np.matmul(self.E_XYZ_to_ENz.transpose(), self.v_ENz_o_0_t)
 
-        # Compute the distance between the object and the tripod at
-        # time one
-        self.distance3d = axis_ptz_utilities.norm(r_ENz_o_1_t)
+            # Compute the distance between the object and the tripod at
+            # time one
+            self.distance3d = axis_ptz_utilities.norm(r_ENz_o_1_t)
 
-        # TODO: Restore?
-        # Compute the distance between the object and the tripod
-        # along the surface of a spherical Earth
-        # distance2d = axis_ptz_utilities.compute_great_circle_distance(
-        #     self.self.lambda_t,
-        #     self.varphi_t,
-        #     self.lambda_o,
-        #     self.varphi_o,
-        # )  # [m]
+            # TODO: Restore?
+            # Compute the distance between the object and the tripod
+            # along the surface of a spherical Earth
+            # distance2d = axis_ptz_utilities.compute_great_circle_distance(
+            #     self.self.lambda_t,
+            #     self.varphi_t,
+            #     self.lambda_o,
+            #     self.varphi_o,
+            # )  # [m]
 
-        # Compute the object azimuth and elevation relative to the
-        # tripod
-        self.azm_o = math.degrees(math.atan2(r_ENz_o_1_t[0], r_ENz_o_1_t[1]))  # [deg]
-        self.elv_o = math.degrees(
-            math.atan2(r_ENz_o_1_t[2], axis_ptz_utilities.norm(r_ENz_o_1_t[0:2]))
-        )  # [deg]
-        # logging.info(f"Object azimuth and elevation: {self.azm_o}, {self.elv_o} [deg]")
+            # Compute the object azimuth and elevation relative to the
+            # tripod
+            self.azm_o = math.degrees(math.atan2(r_ENz_o_1_t[0], r_ENz_o_1_t[1]))  # [deg]
+            self.elv_o = math.degrees(
+                math.atan2(r_ENz_o_1_t[2], axis_ptz_utilities.norm(r_ENz_o_1_t[0:2]))
+            )  # [deg]
+            # logging.info(f"Object azimuth and elevation: {self.azm_o}, {self.elv_o} [deg]")
 
-        # Compute pan and tilt to point the camera at the object
-        r_uvw_o_1_t = np.matmul(self.E_XYZ_to_uvw, r_XYZ_o_1_t)
-        self.rho_o = math.degrees(math.atan2(r_uvw_o_1_t[0], r_uvw_o_1_t[1]))  # [deg]
-        self.tau_o = math.degrees(
-            math.atan2(r_uvw_o_1_t[2], axis_ptz_utilities.norm(r_uvw_o_1_t[0:2]))
-        )  # [deg]
+            # Compute pan and tilt to point the camera at the object
+            r_uvw_o_1_t = np.matmul(self.E_XYZ_to_uvw, r_XYZ_o_1_t)
+            self.rho_o = math.degrees(math.atan2(r_uvw_o_1_t[0], r_uvw_o_1_t[1]))  # [deg]
+            self.tau_o = math.degrees(
+                math.atan2(r_uvw_o_1_t[2], axis_ptz_utilities.norm(r_uvw_o_1_t[0:2]))
+            )  # [deg]
 
-        return self.rho_o, self.tau_o, self.distance3d
+            return self.rho_o, self.tau_o, self.distance3d
+        except Exception as e:
+            logging.error(f"Error: {e} latitude: {self.varphi_o}, longitude: {self.lambda_o}, altitude: {self.h_o}")
+            return 0.0, 0.0, 0.0
 
     def _relative_distance_meters(
         self: Any, lat_one: float, lon_one: float, lat_two: float, lon_two: float
