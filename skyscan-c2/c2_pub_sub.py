@@ -41,6 +41,7 @@ class C2PubSub(BaseMQTTPubSub):
         prioritized_ledger_topic: str,
         manual_override_topic: str,
         min_tilt: float,
+        max_tilt: float,
         min_altitude: float,
         max_altitude: float,
         mapping_filepath: str,
@@ -81,6 +82,7 @@ class C2PubSub(BaseMQTTPubSub):
         self.mapping_filepath = mapping_filepath
         self.object_distance_threshold = float(object_distance_threshold)
         self.min_tilt = min_tilt
+        self.max_tilt = max_tilt
         self.min_altitude = min_altitude
         self.max_altitude = max_altitude
         self.lambda_t = self.device_longitude  # [deg]
@@ -159,6 +161,7 @@ class C2PubSub(BaseMQTTPubSub):
     prioritized_ledger_topic = {prioritized_ledger_topic}
     manual_override_topic = {manual_override_topic}
     min_tilt = {min_tilt}
+    max_tilt = {max_tilt}
     min_altitude = {min_altitude}
     max_altitude = {max_altitude}
     mapping_filepath = {mapping_filepath}
@@ -381,6 +384,7 @@ class C2PubSub(BaseMQTTPubSub):
         logging.info(f"Processing config msg data: {data}")
         config = data["skyscan-c2"]
         self.min_tilt = config.get("min_tilt", self.min_tilt)
+        self.max_tilt = config.get("max_tilt", self.max_tilt)
         self.min_altitude = config.get("min_altitude", self.min_altitude)
         self.max_altitude = config.get("max_altitude", self.max_altitude)
 
@@ -403,7 +407,7 @@ class C2PubSub(BaseMQTTPubSub):
                     break
             return True
         else:
-            return self.min_tilt <= elevation <= 90
+            return self.min_tilt <= elevation <= self.max_tilt
         
     def _target_selection_callback(
         self: Any, _client: mqtt.Client, _userdata: Dict[Any, Any], msg: Any
@@ -444,10 +448,11 @@ class C2PubSub(BaseMQTTPubSub):
                     axis=1,
                 )
 
-                object_ledger_df["min_tilt_fail"] = object_ledger_df.apply(
+                object_ledger_df["tilt_fail"] = object_ledger_df.apply(
                     lambda x: not self._elevation_check(x["camera_pan"], x["camera_tilt"]),
                     axis=1
                 )
+
 
                 object_ledger_df["min_altitude_fail"] = (
                     object_ledger_df["altitude"] < self.min_altitude
@@ -464,7 +469,7 @@ class C2PubSub(BaseMQTTPubSub):
                             object_ledger_df["relative_distance"]
                             <= self.object_distance_threshold
                         )
-                        & (object_ledger_df["min_tilt_fail"] == False)
+                        & (object_ledger_df["tilt_fail"] == False)
                         & (object_ledger_df["min_altitude_fail"] == False)
                         & (object_ledger_df["max_altitude_fail"] == False)
                     ]
@@ -609,6 +614,7 @@ if __name__ == "__main__":
         device_altitude=float(os.environ.get("TRIPOD_ALTITUDE")),
         lead_time=float(os.environ.get("LEAD_TIME", 1.0)),
         min_tilt=float(os.environ.get("MIN_TILT", 0.0)),
+        max_tilt=float(os.environ.get("MAX_TILT", 90.0)),
         min_altitude=float(os.environ.get("MIN_ALTITUDE", 0.0)),
         max_altitude=float(os.environ.get("MAX_ALTITUDE", 100000000.0)),
         mapping_filepath=str(os.environ.get("MAPPING_FILEPATH","")),
