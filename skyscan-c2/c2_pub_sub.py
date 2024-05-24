@@ -46,6 +46,7 @@ class C2PubSub(BaseMQTTPubSub):
         max_altitude: float,
         mapping_filepath: str,
         object_distance_threshold: str,
+        distance_improvement_threshold: float,
         device_latitude: str,
         device_longitude: str,
         device_altitude: str,
@@ -81,6 +82,7 @@ class C2PubSub(BaseMQTTPubSub):
         self.device_altitude = float(device_altitude)
         self.mapping_filepath = mapping_filepath
         self.object_distance_threshold = float(object_distance_threshold)
+        self.distance_improvement_threshold = float(distance_improvement_threshold)
         self.min_tilt = min_tilt
         self.max_tilt = max_tilt
         self.min_altitude = min_altitude
@@ -99,6 +101,7 @@ class C2PubSub(BaseMQTTPubSub):
         self.debug = debug
         self.log_level = log_level
         self.override_object = None
+        self.tracked_object = None
 
         if self.mapping_filepath == "":
             self.occlusion_mapping_enabled = False
@@ -166,6 +169,7 @@ class C2PubSub(BaseMQTTPubSub):
     max_altitude = {max_altitude}
     mapping_filepath = {mapping_filepath}
     object_distance_threshold = {object_distance_threshold}
+    distance_improvement_threshold = {distance_improvement_threshold}
     device_latitude = {device_latitude}
     device_longitude = {device_longitude}
     device_altitude = {device_altitude}
@@ -423,7 +427,6 @@ class C2PubSub(BaseMQTTPubSub):
 
             if len(object_ledger_df):
                 ### some logic to select which target
-                target = None
                 object_ledger_df["age"] = time() - object_ledger_df["timestamp"]
                 object_ledger_df["target"] = False
                 object_ledger_df["selectable"] = False
@@ -461,62 +464,102 @@ class C2PubSub(BaseMQTTPubSub):
                     object_ledger_df["altitude"] > self.max_altitude
                 )
 
-                #logging.info(f"Object ledger: {object_ledger_df.to_string()}")
-                if not object_ledger_df.empty and not self.override_object:
-                    logging.debug("Standard distance thresholding")
-                    target_ledger_df = object_ledger_df[
-                        (
-                            object_ledger_df["relative_distance"]
-                            <= self.object_distance_threshold
-                        )
-                        & (object_ledger_df["tilt_fail"] == False)
-                        & (object_ledger_df["min_altitude_fail"] == False)
-                        & (object_ledger_df["max_altitude_fail"] == False)
-                    ]
-                    if not target_ledger_df.empty:
-                        logging.debug("Object[s] within distance threshold")
-                        target_ledger_df.loc[:, "selectable"] = True
-                        target = target_ledger_df.sort_values(
-                            by="relative_distance", ascending=True
-                        ).iloc[0]
-                        target.loc["target"] = True
+                # check if we have any objects in the ledger 
+                if not object_ledger_df.empty: 
+                    
+                    # do we have an override object set?
+                    if self.override_object:
+                        logging.debug("Override object selection")
+                        selection_df = object_ledger_df.loc[
+                            object_ledger_df.index == self.override_object
+                        ]
+                        selection_df = selection_df.sort_values(by="age", ascending=True)
+                        if not selection_df.empty:
+                            logging.debug("Override object exists")
+                            self.tracked_object = selection_df.iloc[0]
+                        else:
+                            logging.error("Override object not found")
+                            self.tracked_object = None
+                            self.override_object = None
                     else:
-                        logging.debug("No object[s] within distance threshold")
-                elif self.override_object and not object_ledger_df.empty:
-                    logging.debug("Override object selection")
-                    selection_df = object_ledger_df[
-                        object_ledger_df.index == self.override_object
-                    ]
-                    selection_df = selection_df.sort_values(by="age", ascending=True)
-                    if not selection_df.empty:
-                        logging.debug("Override object exists")
-                        target = selection_df.iloc[0]
-                    else:
-                        logging.debug("Override object not found")
-                        target = None
-                        self.override_object = None
+                        # select a subset of the ledge that meets the criteria
+                        target_ledger_df = object_ledger_df[
+                            (
+                                object_ledger_df["relative_distance"]
+                                <= self.object_distance_threshold
+                            )
+                            & (object_ledger_df["tilt_fail"] == False)
+                            & (object_ledger_df["min_altitude_fail"] == False)
+                            & (object_ledger_df["max_altitude_fail"] == False)
+                        ]
 
-                if target is not None:
+                        # are there any objects that meet the criteria?
+                        if not target_ledger_df.empty:
+                            logging.debug("Object[s] within distance threshold")
+                            target_ledger_df.loc[:, "selectable"] = True
+                            potential_target = target_ledger_df.sort_values(
+                                by="relative_distance", ascending=True
+                            ).iloc[0]
+                            potential_target.loc["target"] = True
+
+
+                            # are we currently tracking an object?
+                            if self.tracked_object is not None:
+ 
+                                current_target_ledger = target_ledger_df.loc[target_ledger_df.index == self.tracked_object.name]
+                                
+                                # is the current target still within the criteria?
+                                if not current_target_ledger.empty:
+                                    current_target = current_target_ledger.iloc[0]
+
+                                    # is there a potential target that is closer and over the threshold?
+                                    if potential_target is not None:
+                                        distance_improvement_percent = (current_target["relative_distance"] - potential_target["relative_distance"]) / current_target["relative_distance"]
+                                        if distance_improvement_percent > self.distance_improvement_threshold:
+                                            logging.info(f"Switching Aircraft - Improvement in distance: {distance_improvement_percent} (percent)")
+                                            self.tracked_object = potential_target
+                                        else:
+                                            self.tracked_object = current_target
+                                
+                                # handle the case where the current target is no longer within the criteria
+                                else:
+                                    logging.info("Switching Aircraft - Current target no longer within criteria")
+                                    self.tracked_object = potential_target
+
+                            # handle the case where we are not currently tracking an object, and there is a potential target
+                            elif potential_target is not None:
+                                self.tracked_object = potential_target
+                            else:
+                                self.tracked_object = None
+
+
+                        else:
+                            logging.debug("No object[s] within distance threshold")
+                            self.tracked_object = None
+
+
+
+                if self.tracked_object is not None:
                     logging.debug(
                         f"Payload ready, is override: {self.override_object is not None} or is standard: {self.override_object is None}"
                     )
                     payload = {
-                        "timestamp": float(target["timestamp"]),
+                        "timestamp": float(self.tracked_object["timestamp"]),
                         "data": {
-                            "object_id": str(target.name),
-                            "object_type": str(target["object_type"]),
-                            "timestamp": float(target["timestamp"]),
-                            "latitude": float(target["latitude"]),
-                            "longitude": float(target["longitude"]),
-                            "altitude": float(target["altitude"]),
-                            "track": float(target["track"]),
-                            "horizontal_velocity": float(target["horizontal_velocity"]),
-                            "vertical_velocity": float(target["vertical_velocity"]),
-                            "relative_distance": float(target["relative_distance"]),
-                            "camera_tilt": float(target["camera_tilt"]),
-                            "camera_pan": float(target["camera_pan"]),
-                            "distance_3d": float(target["distance_3d"]),
-                            "age": float(target["age"]),
+                            "object_id": str(self.tracked_object.name),
+                            "object_type": str(self.tracked_object["object_type"]),
+                            "timestamp": float(self.tracked_object["timestamp"]),
+                            "latitude": float(self.tracked_object["latitude"]),
+                            "longitude": float(self.tracked_object["longitude"]),
+                            "altitude": float(self.tracked_object["altitude"]),
+                            "track": float(self.tracked_object["track"]),
+                            "horizontal_velocity": float(self.tracked_object["horizontal_velocity"]),
+                            "vertical_velocity": float(self.tracked_object["vertical_velocity"]),
+                            "relative_distance": float(self.tracked_object["relative_distance"]),
+                            "camera_tilt": float(self.tracked_object["camera_tilt"]),
+                            "camera_pan": float(self.tracked_object["camera_pan"]),
+                            "distance_3d": float(self.tracked_object["distance_3d"]),
+                            "age": float(self.tracked_object["age"]),
                         },
                     }
                     logging.debug(f"This is the selected target {payload}")
@@ -544,6 +587,31 @@ class C2PubSub(BaseMQTTPubSub):
                         logging.warning(
                             f"Failed to send data: {out_json} on topic: {self.object_topic}"
                         )
+                else:
+                    out_json = self.generate_payload_json(
+                        push_timestamp=str(int(datetime.utcnow().timestamp())),
+                        device_type="Collector",
+                        id_=self.hostname,
+                        deployment_id=f"ShipScan-{self.hostname}",
+                        current_location="-90, -180",
+                        status="Debug",
+                        message_type="Event",
+                        model_version="null",
+                        firmware_version="v0.0.0",
+                        data_payload_type="Selected Object",
+                        data_payload=json.dumps({}),
+                    )
+
+                    success = self.publish_to_topic(self.object_topic, out_json)
+                    if success:
+                        logging.debug(
+                            f"Successfully sent data: {out_json} on topic: {self.object_topic}"
+                        )
+                    else:
+                        logging.warning(
+                            f"Failed to send data: {out_json} on topic: {self.object_topic}"
+                        )
+
 
                 out_json = self.generate_payload_json(
                     push_timestamp=str(int(datetime.utcnow().timestamp())),
@@ -619,6 +687,7 @@ if __name__ == "__main__":
         max_altitude=float(os.environ.get("MAX_ALTITUDE", 100000000.0)),
         mapping_filepath=str(os.environ.get("MAPPING_FILEPATH","")),
         object_distance_threshold=str(os.environ.get("OBJECT_DISTANCE_THRESHOLD")),
+        distance_improvement_threshold=float(os.environ.get("DISTANCE_IMPROVEMENT_THRESHOLD", 0.1)),
         log_level=str(os.environ.get("LOG_LEVEL", "INFO")),
     )
     c2.main()
