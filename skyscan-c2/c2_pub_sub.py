@@ -401,9 +401,19 @@ class C2PubSub(BaseMQTTPubSub):
         Returns:
             bool: True if the elevation is within the acceptable range
         """
+
+        # Check if Occlusion Mapping is enabled
+        # Occlusion is designed for structures that come up from the horizon and block the view of the camera.
+        # It doesn't work for overhanging things.
         if self.occlusion_mapping_enabled:
-            for obj in self.occlusion_mapping:
-                if obj["azimuth"] > azimuth:
+
+            # Go through all of the Occlusion Mapping Points
+            for i, obj in enumerate(self.occlusion_mapping):
+                # Check if the Azimuth(Pan) is greater or if this is the last point. If it is the last point,
+                # then we can assume it applies to the end of the pan (360)
+                if (obj["azimuth"] > azimuth) or (i == len(self.occlusion_mapping) - 1):
+
+                    # If the Occlusion Point elevation is greater than the current elevation, then it is occluded.
                     if obj["elevation"] > elevation:
                         return False
                     else:
