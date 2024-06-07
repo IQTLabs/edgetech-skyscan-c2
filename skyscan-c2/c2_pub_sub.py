@@ -485,10 +485,10 @@ class C2PubSub(BaseMQTTPubSub):
                         ]
                         selection_df = selection_df.sort_values(by="age", ascending=True)
                         if not selection_df.empty:
-                            logging.info(f"Selecting Override object: {self.override_object}")
+                            logging.debug(f"Selecting Override object: {self.override_object}")
                             self.tracked_object = selection_df.iloc[0]
                         else:
-                            logging.error(f"Override object {self.override_object} not found in Ledger")
+                            logging.info(f"Override object {self.override_object} not found in Ledger, clearing override object")
                             self.tracked_object = None
                             self.override_object = None
                     else:
