@@ -26,8 +26,8 @@
 
 <br />
 <div align="center">
-  <a href="https://iqtlabs.org/">
-    <img src="images/logo.png" alt="Logo" width="331" height="153">
+  <a href="https://iqt.org">
+    <img src="images/logo.png" alt="Logo" width="358" height="132">
   </a>
 </div>
 <h1 align="center">SkyScan C2</h1>
@@ -40,16 +40,16 @@ SkyScan C2 makes it selection based on the distance of aircraft from the camera 
 - **MIN_ALTITUDE**: The minimum altitude of an aircraft. This is useful when there are nearby aircraft that are on the ground and should be ignored.
 - **MAX_ALTITUDE**: The maximum altitude of an aircraft. This is useful when there are clouds and you want to ignore any aircrafts that are in the clouds.
 
-### Docker Compose
-SkyScan is designed to be stood up as a series of Docker containers. Docker Compose makes it easy to do coordinate all of the containers. The <a href="https://github.com/IQTLabs/SkyScan">SkyScan</a> repo provides an example of a `docker-compose.yaml` file that can be used to startup an instance. The `docker-compose.yaml` file include in this repo provides a minimal example of how to start and configure a SkyScan C2 container. You can use this Docker Compose file as a starting point if you wish to include the SkyScan C2 container in a custom system.
+## Usage
 
+This module is designed to be used in concert with other modules to
+build a complete tracking system. [SkyScan](https://github.com/IQTLabs/SkyScan), 
+which tracks aircraft using ADS-B transmissions, is an example of the type of 
+system that can be built.
 
-<a href="https://github.com/IQTLabs/edgetech-template/pulls">Make Contribution</a>
-·
-<a href="https://github.com/IQTLabs/edgetech-template/issues">Report Bug</a>
-·
-<a href="https://github.com/IQTLabs/edgetech-template/issues">Request Feature</a>
-
+ Checkout the `docker-compose.yml` in that repo to see how these modules
+ can be connected together. The configuration for the system is stored in `.env` environment files. Examples of the different environment files
+ are included in the **SkyScan** repo and can be configured them to match your setup.
 
 
 ### Built With
@@ -61,7 +61,7 @@ SkyScan is designed to be stood up as a series of Docker containers. Docker Comp
 
 ## License
 
-Distributed under the [Apache 2.0](https://github.com/IQTLabs/edgetech-template/blob/main/LICENSE). See `LICENSE.txt` for more information.
+Distributed under the [Apache 2.0](https://github.com/IQTLabs/edgetech-skyscan-c2/blob/main/LICENSE). See `LICENSE.txt` for more information.
 
 ## Contact IQTLabs
 
