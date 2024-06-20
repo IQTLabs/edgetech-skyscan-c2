@@ -66,7 +66,7 @@ Distributed under the [Apache 2.0](https://github.com/IQTLabs/edgetech-skyscan-c
 ## Contact IQTLabs
 
 - Twitter: [@iqtlabs](https://twitter.com/iqtlabs)
-- Email: info@iqtlabs.org
+- Email: labsinfo@iqt.org
 
 See our other projects: [https://github.com/IQTLabs/](https://github.com/IQTLabs/)
 
