@@ -14,18 +14,23 @@ services:
       options:
         max-size: "10M"
         max-file: "10"
-  template:
-    image: iqtlabs/edgetech-template:latest
-    build:
-      context: ./template
-      dockerfile: ./Dockerfile
+  skyscan-c2:
+    networks:
+      - skyscan
+    image: iqtlabs/edgetech-skyscan-c2:latest
+    volumes:
+      - ./data/mapping:/data/mapping
+    #build:
+    #  context: ./skyscan-c2
+    #  dockerfile: ./Dockerfile
     restart: unless-stopped
-    depends_on: 
+    depends_on:
       - mqtt
+      - object-ledger
     logging:
       driver: "json-file"
       options:
         max-size: "10M"
         max-file: "10"
     env_file:
-      - template.env
+      - skyscan-c2.env
