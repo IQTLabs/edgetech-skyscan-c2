@@ -569,6 +569,7 @@ class C2PubSub(BaseMQTTPubSub):
                             "camera_tilt": float(self.tracked_object["camera_tilt"]),
                             "camera_pan": float(self.tracked_object["camera_pan"]),
                             "distance_3d": float(self.tracked_object["distance_3d"]),
+                            "flight": str(self.tracked_object["flight"]),
                             "age": float(self.tracked_object["age"]),
                         },
                     }
