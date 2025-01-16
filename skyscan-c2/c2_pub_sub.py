@@ -3,6 +3,7 @@ different services using MQTT.
 """
 import os
 import json
+from json import JSONDecodeError
 import logging
 from io import StringIO
 from time import sleep, time
@@ -346,11 +347,11 @@ class C2PubSub(BaseMQTTPubSub):
         try:
             json_payload = json.loads(payload)
             data_payload = json_payload[data_payload_type]
-        except (KeyError, TypeError) as e:
+        except (KeyError, TypeError, JSONDecodeError, json.JSONDecodeError) as e:
             logging.error(f"Error: {e}")
-            logging.error(json_payload)
+            logging.error(payload)
             logging.error(
-                f"Data payload type: {data_payload_type} not found in payload: {data_payload}"
+                f"Data payload type: {data_payload_type} not found in payload: {payload}"
             )
             return {}
         return json.loads(data_payload)
