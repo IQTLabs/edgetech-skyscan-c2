@@ -12,7 +12,7 @@ pandas = "^2.0.3"
 coloredlogs = "^15.0.1"
 numpy = "^1.26.4"
 numpy-quaternion = "^2023.0.2"
-
+zstandard = "0.23.0"
 
 [tool.poetry.dev-dependencies]
 

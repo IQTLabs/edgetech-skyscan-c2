@@ -41,6 +41,8 @@ class C2PubSub(BaseMQTTPubSub):
         object_topic: str,
         prioritized_ledger_topic: str,
         manual_override_topic: str,
+        faa_master_csv: str, 
+        faa_acftref_csv: str, 
         min_tilt: float,
         max_tilt: float,
         min_altitude: float,
@@ -78,6 +80,8 @@ class C2PubSub(BaseMQTTPubSub):
         self.object_topic = object_topic
         self.prioritized_ledger_topic = prioritized_ledger_topic
         self.manual_override_topic = manual_override_topic
+        self.faa_master_csv = faa_master_csv
+        self.faa_acftref_csv = faa_acftref_csv
         self.device_latitude = float(device_latitude)
         self.device_longitude = float(device_longitude)
         self.device_altitude = float(device_altitude)
@@ -104,12 +108,15 @@ class C2PubSub(BaseMQTTPubSub):
         self.override_object = None
         self.tracked_object = None
 
-        if self.mapping_filepath == "":
+        if self.mapping_filepath == "" or not os.path.isfile(self.mapping_filepath):
             self.occlusion_mapping_enabled = False
         else:
             with open(mapping_filepath) as f:
                 self.occlusion_mapping = json.load(f)
             self.occlusion_mapping_enabled = True
+
+        self.faa_master_df = pd.read_csv(self.faa_master_csv, converters={"MODE S CODE HEX": str.strip}, index_col="MODE S CODE HEX")
+        self.faa_acftref_df = pd.read_csv(self.faa_acftref_csv, converters={"CODE": str.strip},index_col="CODE")
 
         # Compute tripod position in the geocentric (XYZ) coordinate
         # system
@@ -393,6 +400,51 @@ class C2PubSub(BaseMQTTPubSub):
         self.min_altitude = config.get("min_altitude", self.min_altitude)
         self.max_altitude = config.get("max_altitude", self.max_altitude)
 
+    def _add_faa_info(self, object_ledger_df: pd.DataFrame) -> pd.DataFrame:
+        """Add FAA information to the object ledger
+
+        Args:
+            object_ledger_df (pd.DataFrame): DataFrame of objects
+
+        Returns:
+            pd.DataFrame: DataFrame of objects with FAA information
+        """
+
+        # logging.info("Adding FAA info")
+        # logging.info(object_ledger_df)
+        # logging.info("columns:", self.faa_master_df.columns.tolist())
+        # logging.info(self.faa_master_df.iloc[0])
+        try:
+            reg_matching_rows = self.faa_master_df.loc[object_ledger_df.name.upper()]
+        except KeyError as e:
+            logging.info(f"Aircraft not found in FAA data: {e} ")
+            return
+        except IndexError as e:
+            logging.info("indexerror")
+            logging.info(e)
+            return
+        except Exception as e:
+            logging.info(f"random error {e}")
+        #logging.info(object_ledger_df.name.upper())
+        if not reg_matching_rows.empty:
+            object_ledger_df['n_number'] = reg_matching_rows['N-NUMBER'].strip()
+            object_ledger_df['owner'] = reg_matching_rows['NAME'].strip()
+            object_ledger_df['aircraft_type'] = reg_matching_rows['TYPE AIRCRAFT']
+            object_ledger_df['engine_type'] = reg_matching_rows['TYPE ENGINE']
+
+
+            code = reg_matching_rows['MFR MDL CODE'].strip()
+            # get MFR and MODEL from ACFTREF.csv
+            acft_matching_rows = self.faa_acftref_df.loc[code]
+  
+            if not acft_matching_rows.empty:
+                object_ledger_df['aircraft_mfr']  = acft_matching_rows['MFR'].strip()
+                object_ledger_df['aircraft_model'] = acft_matching_rows['MODEL'].strip()
+                object_ledger_df['num_engine'] = acft_matching_rows['NO-ENG']
+
+        #logging.info(object_ledger_df)
+        return object_ledger_df
+
     def _elevation_check(self: Any, azimuth: float, elevation: float) -> bool:
         """Check if the elevation is within the acceptable range
 
@@ -437,6 +489,7 @@ class C2PubSub(BaseMQTTPubSub):
 
 
             if len(object_ledger_df):
+                object_ledger_df = object_ledger_df.apply(lambda x: self._add_faa_info(x), axis=1)
                 ### some logic to select which target
                 object_ledger_df["age"] = time() - object_ledger_df["timestamp"]
                 object_ledger_df["target"] = False
@@ -571,6 +624,13 @@ class C2PubSub(BaseMQTTPubSub):
                             "camera_pan": float(self.tracked_object["camera_pan"]),
                             "distance_3d": float(self.tracked_object["distance_3d"]),
                             "flight": str(self.tracked_object["flight"]),
+                            "aircraft_type": str(self.tracked_object["aircraft_type"]),
+                            "aircraft_mfr": str(self.tracked_object["aircraft_mfr"]),
+                            "aircraft_model": str(self.tracked_object["aircraft_model"]),
+                            "n_number": str(self.tracked_object["n_number"]),
+                            "owner": str(self.tracked_object["owner"]),
+                            "engine_type": str(self.tracked_object["engine_type"]),
+                            "num_engine": str(self.tracked_object["num_engine"]),
                             "age": float(self.tracked_object["age"]),
                         },
                     }
@@ -690,6 +750,8 @@ if __name__ == "__main__":
         object_topic=str(os.environ.get("OBJECT_TOPIC")),
         prioritized_ledger_topic=str(os.environ.get("PRIORITIZED_LEDGER_TOPIC")),
         manual_override_topic=str(os.environ.get("MANUAL_OVERRIDE_TOPIC")),
+        faa_master_csv=os.getenv("FAA_MASTER_CSV", "MASTER.txt.zst"),
+        faa_acftref_csv=os.getenv("FAA_ACFTREF_CSV", "ACFTREF.txt.zst"),
         device_latitude=float(os.environ.get("TRIPOD_LATITUDE")),
         device_longitude=float(os.environ.get("TRIPOD_LONGITUDE")),
         device_altitude=float(os.environ.get("TRIPOD_ALTITUDE")),
