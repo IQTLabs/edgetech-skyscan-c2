@@ -417,7 +417,7 @@ class C2PubSub(BaseMQTTPubSub):
         try:
             reg_matching_rows = self.faa_master_df.loc[object_ledger_df.name.upper()]
         except KeyError as e:
-            logging.info(f"Aircraft not found in FAA data: {e} ")
+            logging.debug(f"Aircraft not found in FAA data: {e} ")
             return
         except IndexError as e:
             logging.info("indexerror")
