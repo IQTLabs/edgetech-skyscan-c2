@@ -358,7 +358,7 @@ class C2PubSub(BaseMQTTPubSub):
             logging.error(f"Error: {e}")
             logging.error(payload)
             logging.error(
-                f"Data payload type: {data_payload_type} not found in payload: {payload}"
+                f"Error decoding payload: {payload}"
             )
             return {}
         return json.loads(data_payload)
@@ -481,160 +481,210 @@ class C2PubSub(BaseMQTTPubSub):
     ) -> None:
         payload_dict = json.loads(str(msg.payload.decode("utf-8")))
 
-        if "ObjectLedger" in payload_dict.keys():
-            object_ledger_json = payload_dict["ObjectLedger"]
-            object_ledger_df = pd.read_json(
-                StringIO(object_ledger_json), convert_dates=False, convert_axes=False
-            )
+        try:
+            if "ObjectLedger" in payload_dict.keys():
+                object_ledger_json = payload_dict["ObjectLedger"]
+                object_ledger_df = pd.read_json(
+                    StringIO(object_ledger_json), convert_dates=False, convert_axes=False
+                )
 
 
-            if len(object_ledger_df):
-                object_ledger_df = object_ledger_df.apply(lambda x: self._add_faa_info(x), axis=1)
-                ### some logic to select which target
-                object_ledger_df["age"] = time() - object_ledger_df["timestamp"]
-                object_ledger_df["target"] = False
-                object_ledger_df["selectable"] = False
+                if len(object_ledger_df):
+                    object_ledger_df = object_ledger_df.apply(lambda x: self._add_faa_info(x), axis=1)
+                    ### some logic to select which target
+                    object_ledger_df["age"] = time() - object_ledger_df["timestamp"]
+                    object_ledger_df["target"] = False
+                    object_ledger_df["selectable"] = False
 
-                (
-                    object_ledger_df["camera_pan"],
-                    object_ledger_df["camera_tilt"],
-                    object_ledger_df["distance_3d"],
-                ) = zip(
-                    *object_ledger_df.apply(
-                        lambda x: self._calculate_camera_angles(x.to_dict()),
+                    (
+                        object_ledger_df["camera_pan"],
+                        object_ledger_df["camera_tilt"],
+                        object_ledger_df["distance_3d"],
+                    ) = zip(
+                        *object_ledger_df.apply(
+                            lambda x: self._calculate_camera_angles(x.to_dict()),
+                            axis=1,
+                        )
+                    )
+                    object_ledger_df["relative_distance"] = object_ledger_df.apply(
+                        lambda x: self._relative_distance_meters(
+                            self.device_latitude,
+                            self.device_longitude,
+                            float(x["latitude"]),
+                            float(x["longitude"]),
+                        ),
                         axis=1,
                     )
-                )
-                object_ledger_df["relative_distance"] = object_ledger_df.apply(
-                    lambda x: self._relative_distance_meters(
-                        self.device_latitude,
-                        self.device_longitude,
-                        float(x["latitude"]),
-                        float(x["longitude"]),
-                    ),
-                    axis=1,
-                )
 
-                object_ledger_df["tilt_fail"] = object_ledger_df.apply(
-                    lambda x: not self._elevation_check(x["camera_pan"], x["camera_tilt"]),
-                    axis=1
-                )
+                    object_ledger_df["tilt_fail"] = object_ledger_df.apply(
+                        lambda x: not self._elevation_check(x["camera_pan"], x["camera_tilt"]),
+                        axis=1
+                    )
 
 
-                object_ledger_df["min_altitude_fail"] = (
-                    object_ledger_df["altitude"] < self.min_altitude
-                )
-                object_ledger_df["max_altitude_fail"] = (
-                    object_ledger_df["altitude"] > self.max_altitude
-                )
+                    object_ledger_df["min_altitude_fail"] = (
+                        object_ledger_df["altitude"] < self.min_altitude
+                    )
+                    object_ledger_df["max_altitude_fail"] = (
+                        object_ledger_df["altitude"] > self.max_altitude
+                    )
 
-                # check if we have any objects in the ledger 
-                if not object_ledger_df.empty: 
-                    
-                    # do we have an override object set?
-                    if self.override_object:
-                        logging.debug("Override object selection")
-                        selection_df = object_ledger_df.loc[
-                            object_ledger_df.index == self.override_object
-                        ]
-                        selection_df = selection_df.sort_values(by="age", ascending=True)
-                        if not selection_df.empty:
-                            logging.debug(f"Selecting Override object: {self.override_object}")
-                            self.tracked_object = selection_df.iloc[0]
-                        else:
-                            logging.info(f"Override object {self.override_object} not found in Ledger, clearing override object")
-                            self.tracked_object = None
-                            self.override_object = None
-                    else:
-                        # select a subset of the ledge that meets the criteria
-                        target_ledger_df = object_ledger_df[
-                            (
-                                object_ledger_df["relative_distance"]
-                                <= self.object_distance_threshold
-                            )
-                            & (object_ledger_df["tilt_fail"] == False)
-                            & (object_ledger_df["min_altitude_fail"] == False)
-                            & (object_ledger_df["max_altitude_fail"] == False)
-                        ]
-
-                        # are there any objects that meet the criteria?
-                        if not target_ledger_df.empty:
-                            logging.debug("Object[s] within distance threshold")
-                            target_ledger_df.loc[:, "selectable"] = True
-                            potential_target = target_ledger_df.sort_values(
-                                by="relative_distance", ascending=True
-                            ).iloc[0]
-                            potential_target.loc["target"] = True
-
-
-                            # are we currently tracking an object?
-                            if self.tracked_object is not None:
- 
-                                current_target_ledger = target_ledger_df.loc[target_ledger_df.index == self.tracked_object.name]
-                                
-                                # is the current target still within the criteria?
-                                if not current_target_ledger.empty:
-                                    current_target = current_target_ledger.iloc[0]
-
-                                    # is there a potential target that is closer and over the threshold?
-                                    if potential_target is not None:
-                                        distance_improvement_percent = (current_target["relative_distance"] - potential_target["relative_distance"]) / current_target["relative_distance"]
-                                        if distance_improvement_percent > self.distance_improvement_threshold:
-                                            logging.info(f"Switching Aircraft - Improvement in distance: {distance_improvement_percent} (percent)")
-                                            self.tracked_object = potential_target
-                                        else:
-                                            self.tracked_object = current_target
-                                
-                                # handle the case where the current target is no longer within the criteria
-                                else:
-                                    logging.info("Switching Aircraft - Current target no longer within criteria")
-                                    self.tracked_object = potential_target
-
-                            # handle the case where we are not currently tracking an object, and there is a potential target
-                            elif potential_target is not None:
-                                self.tracked_object = potential_target
+                    # check if we have any objects in the ledger 
+                    if not object_ledger_df.empty: 
+                        
+                        # do we have an override object set?
+                        if self.override_object:
+                            logging.debug("Override object selection")
+                            selection_df = object_ledger_df.loc[
+                                object_ledger_df.index == self.override_object
+                            ]
+                            selection_df = selection_df.sort_values(by="age", ascending=True)
+                            if not selection_df.empty:
+                                logging.debug(f"Selecting Override object: {self.override_object}")
+                                self.tracked_object = selection_df.iloc[0]
                             else:
+                                logging.info(f"Override object {self.override_object} not found in Ledger, clearing override object")
+                                self.tracked_object = None
+                                self.override_object = None
+                        else:
+                            # select a subset of the ledge that meets the criteria
+                            target_ledger_df = object_ledger_df[
+                                (
+                                    object_ledger_df["relative_distance"]
+                                    <= self.object_distance_threshold
+                                )
+                                & (object_ledger_df["tilt_fail"] == False)
+                                & (object_ledger_df["min_altitude_fail"] == False)
+                                & (object_ledger_df["max_altitude_fail"] == False)
+                            ]
+
+                            # are there any objects that meet the criteria?
+                            if not target_ledger_df.empty:
+                                logging.debug("Object[s] within distance threshold")
+                                target_ledger_df.loc[:, "selectable"] = True
+                                potential_target = target_ledger_df.sort_values(
+                                    by="relative_distance", ascending=True
+                                ).iloc[0]
+                                potential_target.loc["target"] = True
+
+
+                                # are we currently tracking an object?
+                                if self.tracked_object is not None:
+    
+                                    current_target_ledger = target_ledger_df.loc[target_ledger_df.index == self.tracked_object.name]
+                                    
+                                    # is the current target still within the criteria?
+                                    if not current_target_ledger.empty:
+                                        current_target = current_target_ledger.iloc[0]
+
+                                        # is there a potential target that is closer and over the threshold?
+                                        if potential_target is not None:
+                                            distance_improvement_percent = (current_target["relative_distance"] - potential_target["relative_distance"]) / current_target["relative_distance"]
+                                            if distance_improvement_percent > self.distance_improvement_threshold:
+                                                logging.info(f"Switching Aircraft - Improvement in distance: {distance_improvement_percent} (percent)")
+                                                self.tracked_object = potential_target
+                                            else:
+                                                self.tracked_object = current_target
+                                    
+                                    # handle the case where the current target is no longer within the criteria
+                                    else:
+                                        logging.info("Switching Aircraft - Current target no longer within criteria")
+                                        self.tracked_object = potential_target
+
+                                # handle the case where we are not currently tracking an object, and there is a potential target
+                                elif potential_target is not None:
+                                    self.tracked_object = potential_target
+                                else:
+                                    self.tracked_object = None
+
+
+                            else:
+                                logging.debug("No object[s] within distance threshold")
                                 self.tracked_object = None
 
 
-                        else:
-                            logging.debug("No object[s] within distance threshold")
-                            self.tracked_object = None
 
-
-
-                if self.tracked_object is not None:
-                    logging.debug(
-                        f"Payload ready, is override: {self.override_object is not None} or is standard: {self.override_object is None}"
-                    )
-                    payload = {
-                        "timestamp": float(self.tracked_object["timestamp"]),
-                        "data": {
-                            "object_id": str(self.tracked_object.name),
-                            "object_type": str(self.tracked_object["object_type"]),
+                    if self.tracked_object is not None:
+                        logging.debug(
+                            f"Payload ready, is override: {self.override_object is not None} or is standard: {self.override_object is None}"
+                        )
+                        payload = {
                             "timestamp": float(self.tracked_object["timestamp"]),
-                            "latitude": float(self.tracked_object["latitude"]),
-                            "longitude": float(self.tracked_object["longitude"]),
-                            "altitude": float(self.tracked_object["altitude"]),
-                            "track": float(self.tracked_object["track"]),
-                            "horizontal_velocity": float(self.tracked_object["horizontal_velocity"]),
-                            "vertical_velocity": float(self.tracked_object["vertical_velocity"]),
-                            "relative_distance": float(self.tracked_object["relative_distance"]),
-                            "camera_tilt": float(self.tracked_object["camera_tilt"]),
-                            "camera_pan": float(self.tracked_object["camera_pan"]),
-                            "distance_3d": float(self.tracked_object["distance_3d"]),
-                            "flight": str(self.tracked_object["flight"]),
-                            "aircraft_type": str(self.tracked_object["aircraft_type"]),
-                            "aircraft_mfr": str(self.tracked_object["aircraft_mfr"]),
-                            "aircraft_model": str(self.tracked_object["aircraft_model"]),
-                            "n_number": str(self.tracked_object["n_number"]),
-                            "owner": str(self.tracked_object["owner"]),
-                            "engine_type": str(self.tracked_object["engine_type"]),
-                            "num_engine": str(self.tracked_object["num_engine"]),
-                            "age": float(self.tracked_object["age"]),
-                        },
-                    }
-                    logging.debug(f"This is the selected target {payload}")
+                            "data": {
+                                "object_id": str(self.tracked_object.name),
+                                "object_type": str(self.tracked_object["object_type"]),
+                                "timestamp": float(self.tracked_object["timestamp"]),
+                                "latitude": float(self.tracked_object["latitude"]),
+                                "longitude": float(self.tracked_object["longitude"]),
+                                "altitude": float(self.tracked_object["altitude"]),
+                                "track": float(self.tracked_object["track"]),
+                                "horizontal_velocity": float(self.tracked_object["horizontal_velocity"]),
+                                "vertical_velocity": float(self.tracked_object["vertical_velocity"]),
+                                "relative_distance": float(self.tracked_object["relative_distance"]),
+                                "camera_tilt": float(self.tracked_object["camera_tilt"]),
+                                "camera_pan": float(self.tracked_object["camera_pan"]),
+                                "distance_3d": float(self.tracked_object["distance_3d"]),
+                                "flight": str(self.tracked_object["flight"]),
+                                "aircraft_type": str(self.tracked_object["aircraft_type"]),
+                                "aircraft_mfr": str(self.tracked_object["aircraft_mfr"]),
+                                "aircraft_model": str(self.tracked_object["aircraft_model"]),
+                                "n_number": str(self.tracked_object["n_number"]),
+                                "owner": str(self.tracked_object["owner"]),
+                                "engine_type": str(self.tracked_object["engine_type"]),
+                                "num_engine": str(self.tracked_object["num_engine"]),
+                                "age": float(self.tracked_object["age"]),
+                            },
+                        }
+                        logging.debug(f"This is the selected target {payload}")
+
+                        out_json = self.generate_payload_json(
+                            push_timestamp=str(int(datetime.utcnow().timestamp())),
+                            device_type="Collector",
+                            id_=self.hostname,
+                            deployment_id=f"ShipScan-{self.hostname}",
+                            current_location="-90, -180",
+                            status="Debug",
+                            message_type="Event",
+                            model_version="null",
+                            firmware_version="v0.0.0",
+                            data_payload_type="Selected Object",
+                            data_payload=json.dumps(payload["data"]),
+                        )
+
+                        success = self.publish_to_topic(self.object_topic, out_json)
+                        if success:
+                            logging.debug(
+                                f"Successfully sent data: {out_json} on topic: {self.object_topic}"
+                            )
+                        else:
+                            logging.warning(
+                                f"Failed to send data: {out_json} on topic: {self.object_topic}"
+                            )
+                    else:
+                        out_json = self.generate_payload_json(
+                            push_timestamp=str(int(datetime.utcnow().timestamp())),
+                            device_type="Collector",
+                            id_=self.hostname,
+                            deployment_id=f"ShipScan-{self.hostname}",
+                            current_location="-90, -180",
+                            status="Debug",
+                            message_type="Event",
+                            model_version="null",
+                            firmware_version="v0.0.0",
+                            data_payload_type="Selected Object",
+                            data_payload=json.dumps({}),
+                        )
+
+                        success = self.publish_to_topic(self.object_topic, out_json)
+                        if success:
+                            logging.debug(
+                                f"Successfully sent data: {out_json} on topic: {self.object_topic}"
+                            )
+                        else:
+                            logging.warning(
+                                f"Failed to send data: {out_json} on topic: {self.object_topic}"
+                            )
+
 
                     out_json = self.generate_payload_json(
                         push_timestamp=str(int(datetime.utcnow().timestamp())),
@@ -646,11 +696,13 @@ class C2PubSub(BaseMQTTPubSub):
                         message_type="Event",
                         model_version="null",
                         firmware_version="v0.0.0",
-                        data_payload_type="Selected Object",
-                        data_payload=json.dumps(payload["data"]),
+                        data_payload_type="Prioritized Object Ledger",
+                        data_payload=object_ledger_df.to_json(),
                     )
 
-                    success = self.publish_to_topic(self.object_topic, out_json)
+                    success = self.publish_to_topic(
+                        self.prioritized_ledger_topic, out_json
+                    )
                     if success:
                         logging.debug(
                             f"Successfully sent data: {out_json} on topic: {self.object_topic}"
@@ -658,58 +710,12 @@ class C2PubSub(BaseMQTTPubSub):
                     else:
                         logging.warning(
                             f"Failed to send data: {out_json} on topic: {self.object_topic}"
-                        )
-                else:
-                    out_json = self.generate_payload_json(
-                        push_timestamp=str(int(datetime.utcnow().timestamp())),
-                        device_type="Collector",
-                        id_=self.hostname,
-                        deployment_id=f"ShipScan-{self.hostname}",
-                        current_location="-90, -180",
-                        status="Debug",
-                        message_type="Event",
-                        model_version="null",
-                        firmware_version="v0.0.0",
-                        data_payload_type="Selected Object",
-                        data_payload=json.dumps({}),
-                    )
-
-                    success = self.publish_to_topic(self.object_topic, out_json)
-                    if success:
-                        logging.debug(
-                            f"Successfully sent data: {out_json} on topic: {self.object_topic}"
-                        )
-                    else:
-                        logging.warning(
-                            f"Failed to send data: {out_json} on topic: {self.object_topic}"
-                        )
-
-
-                out_json = self.generate_payload_json(
-                    push_timestamp=str(int(datetime.utcnow().timestamp())),
-                    device_type="Collector",
-                    id_=self.hostname,
-                    deployment_id=f"ShipScan-{self.hostname}",
-                    current_location="-90, -180",
-                    status="Debug",
-                    message_type="Event",
-                    model_version="null",
-                    firmware_version="v0.0.0",
-                    data_payload_type="Prioritized Object Ledger",
-                    data_payload=object_ledger_df.to_json(),
-                )
-
-                success = self.publish_to_topic(
-                    self.prioritized_ledger_topic, out_json
-                )
-                if success:
-                    logging.debug(
-                        f"Successfully sent data: {out_json} on topic: {self.object_topic}"
-                    )
-                else:
-                    logging.warning(
-                        f"Failed to send data: {out_json} on topic: {self.object_topic}"
-                        )
+                            )
+        except (KeyError, TypeError) as e:
+            logging.error(f"Error: {e}")
+            logging.error(
+                f"Error decoding parsing Ledger: {object_ledger_df}"
+            )
         if "ObjectIDOverride" in payload_dict.keys():
             self.override_object = str(payload_dict["ObjectIDOverride"])
             logging.info(f"Override object set to: {self.override_object}")
