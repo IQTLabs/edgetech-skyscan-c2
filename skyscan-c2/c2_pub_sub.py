@@ -418,11 +418,11 @@ class C2PubSub(BaseMQTTPubSub):
             reg_matching_rows = self.faa_master_df.loc[object_ledger_df.name.upper()]
         except KeyError as e:
             logging.debug(f"Aircraft not found in FAA data: {e} ")
-            return
+            return object_ledger_df
         except IndexError as e:
             logging.info("indexerror")
             logging.info(e)
-            return
+            return object_ledger_df
         except Exception as e:
             logging.info(f"random error {e}")
         #logging.info(object_ledger_df.name.upper())
@@ -491,6 +491,10 @@ class C2PubSub(BaseMQTTPubSub):
 
                 if len(object_ledger_df):
                     object_ledger_df = object_ledger_df.apply(lambda x: self._add_faa_info(x), axis=1)
+                    # Check and log any rows missing a timestamp
+                    missing_timestamp_rows = object_ledger_df[~object_ledger_df['timestamp'].notna()]
+                    if not missing_timestamp_rows.empty:
+                        logging.warning(f"Rows missing timestamp: {missing_timestamp_rows}")
                     ### some logic to select which target
                     object_ledger_df["age"] = time() - object_ledger_df["timestamp"]
                     object_ledger_df["target"] = False
