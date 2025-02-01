@@ -12,7 +12,7 @@ import paho.mqtt.client as mqtt
 from typing import Any, Dict, Union
 import pandas as pd
 import schedule
-from datetime import datetime
+from datetime import datetime, timezone
 from math import radians, cos, sin, asin, sqrt
 
 import math
@@ -642,7 +642,7 @@ class C2PubSub(BaseMQTTPubSub):
                         logging.debug(f"This is the selected target {payload}")
 
                         out_json = self.generate_payload_json(
-                            push_timestamp=str(int(datetime.utcnow().timestamp())),
+                            push_timestamp=str(int(datetime.now(timezone.utc).timestamp())),
                             device_type="Collector",
                             id_=self.hostname,
                             deployment_id=f"ShipScan-{self.hostname}",
@@ -666,7 +666,7 @@ class C2PubSub(BaseMQTTPubSub):
                             )
                     else:
                         out_json = self.generate_payload_json(
-                            push_timestamp=str(int(datetime.utcnow().timestamp())),
+                            push_timestamp=str(int(datetime.now(timezone.utc).timestamp())),
                             device_type="Collector",
                             id_=self.hostname,
                             deployment_id=f"ShipScan-{self.hostname}",
@@ -691,7 +691,7 @@ class C2PubSub(BaseMQTTPubSub):
 
 
                     out_json = self.generate_payload_json(
-                        push_timestamp=str(int(datetime.utcnow().timestamp())),
+                        push_timestamp=str(int(datetime.now(timezone.utc).timestamp())),
                         device_type="Collector",
                         id_=self.hostname,
                         deployment_id=f"ShipScan-{self.hostname}",
