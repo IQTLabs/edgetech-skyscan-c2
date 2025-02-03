@@ -631,6 +631,7 @@ class C2PubSub(BaseMQTTPubSub):
                                 "flight": str(self.tracked_object["flight"]),
                                 "squawk": str(self.tracked_object["squawk"]),
                                 "category": str(self.tracked_object["category"]),
+                                "emergency": str(self.tracked_object["emergency"]),
                                 "aircraft_type": str(self.tracked_object["aircraft_type"]),
                                 "aircraft_mfr": str(self.tracked_object["aircraft_mfr"]),
                                 "aircraft_model": str(self.tracked_object["aircraft_model"]),
