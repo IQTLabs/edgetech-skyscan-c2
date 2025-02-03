@@ -629,6 +629,8 @@ class C2PubSub(BaseMQTTPubSub):
                                 "camera_pan": float(self.tracked_object["camera_pan"]),
                                 "distance_3d": float(self.tracked_object["distance_3d"]),
                                 "flight": str(self.tracked_object["flight"]),
+                                "squawk": str(self.tracked_object["squawk"]),
+                                "category": str(self.tracked_object["category"]),
                                 "aircraft_type": str(self.tracked_object["aircraft_type"]),
                                 "aircraft_mfr": str(self.tracked_object["aircraft_mfr"]),
                                 "aircraft_model": str(self.tracked_object["aircraft_model"]),
