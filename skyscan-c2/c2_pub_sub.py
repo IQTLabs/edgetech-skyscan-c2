@@ -467,12 +467,15 @@ class C2PubSub(BaseMQTTPubSub):
                 if (obj["azimuth"] > azimuth) or (i == len(self.occlusion_mapping) - 1):
 
                     # If the Occlusion Point elevation is greater than the current elevation, then it is occluded.
-                    if obj["elevation"] > elevation:
-                        return False
-                    else:
+                    if  self.max_tilt > elevation > obj["elevation"]:
                         return True
+                    else:
+                        return False
                     break
-            return True
+            if self.min_tilt > elevation:
+                return True
+            else:
+                return False
         else:
             return self.min_tilt <= elevation <= self.max_tilt
         
