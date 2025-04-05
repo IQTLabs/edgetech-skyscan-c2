@@ -385,7 +385,7 @@ class C2PubSub(BaseMQTTPubSub):
             message_type="Event",
             model_version="null",
             firmware_version="v0.0.0",
-            data_payload_type="Configuration",
+            data_payload_type="Current Configuration",
             data_payload=json.dumps(config),
         )
         success = self.publish_to_topic(self.config_topic, out_json)
