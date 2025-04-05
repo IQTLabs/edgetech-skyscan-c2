@@ -48,7 +48,7 @@ class C2PubSub(BaseMQTTPubSub):
         min_altitude: float,
         max_altitude: float,
         mapping_filepath: str,
-        object_distance_threshold: str,
+        max_distance: str,
         distance_improvement_threshold: float,
         device_latitude: str,
         device_longitude: str,
@@ -86,7 +86,7 @@ class C2PubSub(BaseMQTTPubSub):
         self.device_longitude = float(device_longitude)
         self.device_altitude = float(device_altitude)
         self.mapping_filepath = mapping_filepath
-        self.object_distance_threshold = float(object_distance_threshold)
+        self.max_distance = float(max_distance)
         self.distance_improvement_threshold = float(distance_improvement_threshold)
         self.min_tilt = min_tilt
         self.max_tilt = max_tilt
@@ -176,7 +176,7 @@ class C2PubSub(BaseMQTTPubSub):
     min_altitude = {min_altitude}
     max_altitude = {max_altitude}
     mapping_filepath = {mapping_filepath}
-    object_distance_threshold = {object_distance_threshold}
+    max_distance = {max_distance}
     distance_improvement_threshold = {distance_improvement_threshold}
     device_latitude = {device_latitude}
     device_longitude = {device_longitude}
@@ -363,6 +363,42 @@ class C2PubSub(BaseMQTTPubSub):
             return {}
         return json.loads(data_payload)
 
+
+    def _publish_config(self):
+        """Publish configuration to the configuration topic"""
+        config = {
+            "skyscan-c2": {
+                "min_tilt": self.min_tilt,
+                "max_tilt": self.max_tilt,
+                "min_altitude": self.min_altitude,
+                "max_altitude": self.max_altitude,
+                "max_distance": self.max_distance,
+            }
+        }
+        out_json = self.generate_payload_json(
+            push_timestamp=str(int(datetime.now(timezone.utc).timestamp())),
+            device_type="Collector",
+            id_=self.hostname,
+            deployment_id=f"ShipScan-{self.hostname}",
+            current_location="-90, -180",
+            status="Debug",
+            message_type="Event",
+            model_version="null",
+            firmware_version="v0.0.0",
+            data_payload_type="Configuration",
+            data_payload=json.dumps(config),
+        )
+        success = self.publish_to_topic(self.config_topic, out_json)
+        if success:
+            logging.debug(
+                f"Successfully sent data: {out_json} on topic: {self.config_topic}"
+            )
+        else:
+            logging.warning(
+                f"Failed to send data: {out_json} on topic: {self.config_topic}"
+            )
+
+
     def _config_callback(
         self,
         _client: Union[mqtt.Client, None],
@@ -399,6 +435,10 @@ class C2PubSub(BaseMQTTPubSub):
         self.max_tilt = config.get("max_tilt", self.max_tilt)
         self.min_altitude = config.get("min_altitude", self.min_altitude)
         self.max_altitude = config.get("max_altitude", self.max_altitude)
+        self.max_distance = config.get(
+            "max_distance", self.max_distance
+        )
+        self._publish_config()
 
     def _add_faa_info(self, object_ledger_df: pd.DataFrame) -> pd.DataFrame:
         """Add FAA information to the object ledger
@@ -558,7 +598,7 @@ class C2PubSub(BaseMQTTPubSub):
                             target_ledger_df = object_ledger_df[
                                 (
                                     object_ledger_df["relative_distance"]
-                                    <= self.object_distance_threshold
+                                    <= self.max_distance
                                 )
                                 & (object_ledger_df["tilt_fail"] == False)
                                 & (object_ledger_df["min_altitude_fail"] == False)
@@ -777,7 +817,7 @@ if __name__ == "__main__":
         min_altitude=float(os.environ.get("MIN_ALTITUDE", 0.0)),
         max_altitude=float(os.environ.get("MAX_ALTITUDE", 100000000.0)),
         mapping_filepath=str(os.environ.get("MAPPING_FILEPATH","")),
-        object_distance_threshold=str(os.environ.get("OBJECT_DISTANCE_THRESHOLD")),
+        max_distance=str(os.environ.get("MAX_DISTANCE", 50000.0)),
         distance_improvement_threshold=float(os.environ.get("DISTANCE_IMPROVEMENT_THRESHOLD", 0.1)),
         log_level=str(os.environ.get("LOG_LEVEL", "INFO")),
     )
